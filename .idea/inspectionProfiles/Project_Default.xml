@@ -1,0 +1,33 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="LanguageDetectionInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="14">
+            <item index="0" class="java.lang.String" itemvalue="folium" />
+            <item index="1" class="java.lang.String" itemvalue="haversine" />
+            <item index="2" class="java.lang.String" itemvalue="python-dotenv" />
+            <item index="3" class="java.lang.String" itemvalue="idcube-hive-connector" />
+            <item index="4" class="java.lang.String" itemvalue="konlpy" />
+            <item index="5" class="java.lang.String" itemvalue="python-math" />
+            <item index="6" class="java.lang.String" itemvalue="tensorflow" />
+            <item index="7" class="java.lang.String" itemvalue="datetime" />
+            <item index="8" class="java.lang.String" itemvalue="branca" />
+            <item index="9" class="java.lang.String" itemvalue="silence_tensorflow" />
+            <item index="10" class="java.lang.String" itemvalue="keras" />
+            <item index="11" class="java.lang.String" itemvalue="idcube-python-utils" />
+            <item index="12" class="java.lang.String" itemvalue="infrabot-diy-python-client" />
+            <item index="13" class="java.lang.String" itemvalue="pytimekr" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="SpellCheckingInspection" enabled="false" level="TYPO" enabled_by_default="false">
+      <option name="processCode" value="true" />
+      <option name="processLiterals" value="true" />
+      <option name="processComments" value="true" />
+    </inspection_tool>
+  </profile>
+</component>
