@@ -54,7 +54,7 @@ def answer_question(
         question=None,
         max_len=3000,
         # size="ada",
-        debug=False,
+        debug=True,
         max_tokens=500,
         stop_sequence=None,
         container=None,
@@ -163,7 +163,7 @@ st.title('D&D 룰 도우미')
 
 
 # os.getenv('OPENAI_API_KEY')
-openai_api_key = st.sidebar.text_input('OpenAI API Key')
+openai_api_key = st.sidebar.text_input('OpenAI API Key', value='Input your ChatGPT API key.')
 
 client = None  # OpenAI()
 df = pd.read_csv('scraped3000.csv', index_col=0)
