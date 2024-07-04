@@ -80,28 +80,6 @@ def answer_question(
         print()
 
     try:
-        # Create a chat completion using the question and context
-        # messages = [
-        #     {"role": "system",
-        #      "content": "Answer the question in Korean based on the context below, and if the question can't be answered based on the context, say \"모르겠어요\"\n\n"},
-        #     {"role": "user", "content": f"Context: {context}\n\n---\n\nQuestion: {question}\nAnswer:"}
-        # ]
-        # response = client.chat.completions.create(
-        #     model=model,
-        #     messages=messages,
-        #     temperature=0,
-        #     max_tokens=max_tokens,
-        #     top_p=1,
-        #     frequency_penalty=0,
-        #     presence_penalty=0,
-        #     stop=stop_sequence,
-        # )
-
-        # st.session_state.messages.append({"role": "user", "content": question})
-
-        # st.session_state.messages.append({"role": "user",
-        #                                   "content": f"Context: {context}\n\n---\n\nQuestion: {question}\nAnswer:"})
-
         temp_msg = st.session_state.messages.copy()
         temp_msg.append({"role": "user",
                          "content": f"Context: {context}\n\n---\n\nQuestion: {question}\nAnswer:"})
@@ -198,27 +176,5 @@ if prompt:
     client = get_openai_client()  # OpenAI()
     answer_question(embedding_df=df, model='gpt-4o', question=prompt,
                     max_len=5000, max_tokens=2000, debug=True, container=text_container)
-
-
-# with st.form('my_form'):
-#     question = st.text_area('질문 입력:', '캐릭터 만드는 법 좀 알려줘.')
-#     submitted = st.form_submit_button('Submit', )
-#
-#     if client is None:
-#         if openai_api_key.startswith('sk-'):
-#             # st.warning('Please enter your OpenAI API key!', icon='⚠')
-#             client = OpenAI(api_key=openai_api_key)
-#         else:
-#             client = OpenAI()
-#
-#     if submitted:  # and openai_api_key.startswith('sk-'):
-#         add_chat('user', question)
-#
-#         answer_question(embedding_df=df, model='gpt-4-1106-preview', question=question,
-#                         max_len=5000, max_tokens=1500, debug=True, container=text_container)
-#         st.info(answer)
-#         add_chat('assistant', answer)
-
-
 
 
