@@ -1,11 +1,9 @@
-import os
-import streamlit as st
-# from lanchain.llms import OpenAI
-from openai import OpenAI
-import pandas as pd
 import numpy as np
+import pandas as pd
+import streamlit as st
 from numpy import dot
 from numpy.linalg import norm
+from openai import OpenAI
 
 
 # 코사인 유사도 계산 함수
@@ -14,7 +12,7 @@ def cos_sim(a, b):
 
 
 # 유저 질문과 비슷한 컨텍스트를 모아주는 함수
-def create_context(question, embedding_df, max_len=5000):  # , size="ada"):
+def create_context(question, embedding_df, max_len=10000):  # , size="ada"):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
@@ -52,7 +50,7 @@ def answer_question(
         embedding_df=None,  # default parameters
         model="gpt-3.5-turbo",
         question=None,
-        max_len=3000,
+        max_len=10000,
         # size="ada",
         debug=True,
         max_tokens=500,
@@ -175,6 +173,6 @@ if prompt:
     # response
     client = get_openai_client()  # OpenAI()
     answer_question(embedding_df=df, model='gpt-4o', question=prompt,
-                    max_len=5000, max_tokens=2000, debug=True, container=text_container)
+                    max_len=10000, max_tokens=3000, debug=True, container=text_container)
 
 
