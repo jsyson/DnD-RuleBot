@@ -49,7 +49,7 @@ def create_context(question, embedding_df, max_len=5000):  # , size="ada"):
 
 # 답변 함수
 def answer_question(
-        embedding_df=None,
+        embedding_df=None,  # default parameters
         model="gpt-3.5-turbo",
         question=None,
         max_len=3000,
@@ -166,7 +166,7 @@ st.title('D&D 룰 도우미')
 openai_api_key = st.sidebar.text_input('OpenAI API Key')
 
 client = None  # OpenAI()
-df = pd.read_csv('../../AI/D&D_processed/scraped1500.csv', index_col=0)
+df = pd.read_csv('scraped3000.csv', index_col=0)
 df['embeddings'] = df['embeddings'].apply(eval).apply(np.array)  # 문자열로 읽혔을 경우 apply(eval) 필요
 
 # st.write('# 룰북 벡터 DF')
@@ -196,7 +196,7 @@ if prompt:
 
     # response
     client = get_openai_client()  # OpenAI()
-    answer_question(embedding_df=df, model='gpt-4-1106-preview', question=prompt,
+    answer_question(embedding_df=df, model='gpt-4o', question=prompt,
                     max_len=5000, max_tokens=2000, debug=True, container=text_container)
 
 
