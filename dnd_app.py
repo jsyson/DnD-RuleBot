@@ -4,6 +4,10 @@ import streamlit as st
 from numpy import dot
 from numpy.linalg import norm
 from openai import OpenAI
+import logging
+
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 # 코사인 유사도 계산 함수
@@ -74,8 +78,7 @@ def answer_question(
 
     # If debug, print the raw model response
     if debug:
-        print("Context:\n" + context)
-        print()
+        logging.debug("Context:\n" + context)
 
     try:
         temp_msg = st.session_state.messages.copy()
@@ -108,11 +111,10 @@ def answer_question(
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 
         if debug:
-            print(response.choices)
-            print('\n')
+            logging.debug(response.choices)
 
     except Exception as e:
-        print(e)
+        logging.error(e)
 
 
 def get_openai_client():
@@ -140,6 +142,10 @@ st.title('D&D 룰 도우미')
 
 # os.getenv('OPENAI_API_KEY')
 openai_api_key = st.sidebar.text_input('OpenAI API Key', value='Input your ChatGPT API key.')
+
+# parameters
+max_input_len = st.sidebar.number_input('Max input length', min_value=1000, max_value=10000, value=5000, step=100)
+max_output_token = st.sidebar.number_input('Max output tokens', min_value=1000, max_value=4000, value=2000, step=100)
 
 client = None  # OpenAI()
 df = pd.read_csv('scraped3000.csv', index_col=0)
@@ -173,6 +179,6 @@ if prompt:
     # response
     client = get_openai_client()  # OpenAI()
     answer_question(embedding_df=df, model='gpt-4o', question=prompt,
-                    max_len=10000, max_tokens=3000, debug=True, container=text_container)
+                    max_len=max_input_len, max_tokens=max_output_token, debug=True, container=text_container)
 
 
