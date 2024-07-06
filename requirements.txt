@@ -1,1 +1,6 @@
-openai==1.33.0
+openai~=1.35.10
+numpy~=1.26.2
+pandas~=2.2.2
+streamlit~=1.36.0
+langchain~=0.2.6
+pillow~=10.1.0
