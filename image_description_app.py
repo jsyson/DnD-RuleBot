@@ -422,7 +422,7 @@ if 'ppts_already_read_list' not in st.session_state:  # 이미 읽었던 ppt 파
 
 
 # 사이드바 구성
-if os.environ["OPENAI_API_KEY"]:
+if os.environ.get("OPENAI_API_KEY"):
     os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
                                                          value=os.environ["OPENAI_API_KEY"])
 else:
