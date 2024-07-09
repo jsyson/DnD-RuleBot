@@ -124,7 +124,7 @@ def get_rag_chain_from_docs(docs_for_rag):
     # 기본 프롬프트 생성
     rag_default_prompt = ("You are an assistant for question-answering tasks. "
                           "Use the following pieces of retrieved context to answer the question. "
-                          "If you don't know the answer, just say that '이 파일에서는 관련 내용을 찾을 수 없네요.' "
+                          "If you don't know the answer, just say that '잘 모르겠어요.' "
                           "Use three sentences maximum and keep the answer concise."
                           "\n"
                           "Question: {question} "
@@ -502,6 +502,8 @@ if user_files:
             with st.spinner('RAG Chain 구성중...'):
                 # 모든 도큐먼트를 합친다
                 st.session_state.ppt_docs += combine_and_sort_documents(docs1, docs2)
+                logging.debug('전체 docs 길이: ' + str(len(st.session_state.ppt_docs)))
+
                 # rag를 만든다.
                 st.session_state.ppt_rag_chain = get_rag_chain_from_docs(st.session_state.ppt_docs)
                 st.write('파워포인트 내용 이해 완료! 무엇이 궁금하신가요?')
