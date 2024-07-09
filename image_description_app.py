@@ -3,6 +3,7 @@ import concurrent.futures
 import logging
 import os
 import tempfile
+import time
 
 import streamlit as st
 from PIL import Image
@@ -21,7 +22,8 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.runnables import chain
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from pptx import Presentation
-
+import aspose.slides as slides
+import aspose.pydrawing as drawing
 
 # 로깅 설정
 logging.basicConfig(level=logging.DEBUG)
@@ -32,6 +34,42 @@ executor = concurrent.futures.ThreadPoolExecutor()
 
 # Set verbose if needed
 # globals.set_debug(True)
+
+
+# # # # # # # # # # # #
+# 테스트 코드. #
+# # # # # # # # # # # #
+
+
+# # # # # # # # # # # # # # # # # # # # # # # #
+# ppt 파일 전체를 png 이미지로 변환하는 코드 #
+# # # # # # # # # # # # # # # # # # # # # # # #
+
+
+def pptx_to_png(pptx_filename: str, output_folder='tmp_ppt_images_folder'):
+    # 이미지 임시 저장 디렉토리 생성
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    logging.debug('PPT 파일 PNG로 변환 시작 :' + pptx_filename)
+
+    png_file_list = []
+    with slides.Presentation(pptx_filename) as presentation:
+        for slide in presentation.slides:
+            # 파일 저장 경로 및 이름.
+            tmp_name = os.path.join(output_folder,
+                                    "presentation_slide_{0}.png".format(str(slide.slide_number)))
+            tmp_name = os.path.abspath(tmp_name)
+            logging.debug('저장시작 - ' + tmp_name)
+
+            # png 파일 저장.
+            slide.get_thumbnail(1, 1).save(tmp_name, drawing.imaging.ImageFormat.png)
+            # png 파일 목록 저장
+            png_file_list.append(tmp_name)
+            time.sleep(0.01)
+            logging.debug('저장완료 - ' + tmp_name)
+
+    return png_file_list
 
 
 # # # # # # # # # # # #
@@ -52,7 +90,7 @@ def get_text_documents_from_pptx(uploaded_pptx_file):
         loader = UnstructuredPowerPointLoader(
             tmp_file_path, mode='paged', strategy='fast',
         )
-    return loader.load()
+    return loader.load(), tmp_file_path  # document와 임시저장한 파일경로도 리턴.
 
 
 # 이미지/텍스트 도큐먼트를 합쳐주는 함수
@@ -104,10 +142,10 @@ def get_rag_chain_from_docs(docs_for_rag):
 
     # rag 체인을 생성합니다.
     rag_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
-        | my_prompt
-        | llm
-        | StrOutputParser()
+            {"context": retriever | format_docs, "question": RunnablePassthrough()}
+            | my_prompt
+            | llm
+            | StrOutputParser()
     )
 
     return rag_chain
@@ -151,9 +189,9 @@ def extract_image_description_from_shape(shape, image_output_dir, slide_number, 
     return text_desc_gen_result, image_filename
 
 
-# 이미지에 LLM 디스크립션을 달아주는 함수.
-def get_image_documents_from_pptx(pptx_path, image_output_dir='./tmp_extracted_images',
-                                  begin_of_image_token='<image>', end_of_image_token='</image>'):
+# 이미지에 LLM 디스크립션을 달아주는 함수. (shape 여러개로 쪼개진 이미지들 때문에 미사용)
+def get_image_documents_from_pptx_old(pptx_path, image_output_dir='./tmp_extracted_images',
+                                      begin_of_image_token='<image>', end_of_image_token='</image>'):
     # 프레젠테이션 열기
     prs = Presentation(pptx_path)
 
@@ -207,6 +245,66 @@ def get_image_documents_from_pptx(pptx_path, image_output_dir='./tmp_extracted_i
     return docs_list, img_filepath_list
 
 
+# pptx 파일의 전체 슬라이드를 모두 png 파일로 저장한 후, 디스크립션을 받아오는 함수.
+def get_image_documents_from_pptx(pptx_path: str, image_output_dir='tmp_ppt_images_folder',
+                                  begin_of_image_token='<image>', end_of_image_token='</image>'):
+    # 프레젠테이션 열기
+    image_file_list = pptx_to_png(pptx_path, output_folder=image_output_dir)
+
+    # 메타데이터 생성 - 디렉토리와 파일명
+    directory = os.path.dirname(pptx_path)
+    filename = os.path.basename(pptx_path)
+
+    # 도큐먼트를 저장할 리스트 초기화
+    docs_list = []
+    img_filepath_list = []
+
+    # 각 파일마다 디스크립션을 가져온다.
+    for slide_number, image_file in enumerate(image_file_list):
+        logging.debug('\n슬라이드 이미지 읽는중 : ' + str(slide_number+1) + ' / ' + str(len(image_file_list)))
+
+        # 텍스트 디스크립션 생성
+        desc_gen_result = get_image_description(image_file)
+        # image_description, node_list, link_list
+
+        # 망구성도가 아닐 경우 skip
+        if desc_gen_result is None or \
+                desc_gen_result['image_description'] is None or desc_gen_result['image_description'] == '' or \
+                desc_gen_result['node_list'] is None or len(desc_gen_result['node_list']) == 0 or \
+                desc_gen_result['link_list'] is None or len(desc_gen_result['link_list']) == 0 or \
+                desc_gen_result['mermaid_code'] is None or desc_gen_result['mermaid_code'] == '':
+            continue
+
+        img_desc_str = ''
+        for k, v in desc_gen_result.items():
+            img_desc_str += str(k) + ':\n' + str(v) + '\n'
+        img_desc_str = img_desc_str.strip()
+
+        # 특수 토큰 붙이기
+        if begin_of_image_token:
+            img_desc_str = begin_of_image_token + '\n' + img_desc_str
+        if end_of_image_token:
+            img_desc_str = img_desc_str + '\n' + end_of_image_token
+
+        # 텍스트 생성 결과 저장
+        tmp_img_doc = Document(page_content=img_desc_str,
+                               metadata={'source': pptx_path,
+                                         'file_directory': directory,
+                                         'filename': filename,
+                                         'page_number': slide_number + 1})
+
+        docs_list.append(tmp_img_doc)
+        img_filepath_list.append(image_file)
+
+    # 이미지 추출 도큐먼트 리스트, 이미지 파일명 리스트를 반환
+    return docs_list, img_filepath_list
+
+
+# # # # # # # # # #
+# 이미지 체인 생성 #
+# # # # # # # # # #
+
+
 # 이미지 파일을 읽어 인코딩해주는 함수
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -240,14 +338,14 @@ class ImageInformation(BaseModel):
 
 # 체인을 합쳐서 invoke 해주는 함수
 def get_image_description(image_path, is_bytes=False) -> dict:
-    # 체인1
+    # 체인1-1 - 파일에서 가져오기
     load_image_chain = TransformChain(
         input_variables=["image_path"],
         output_variables=["image"],
         transform=load_image_from_filename
     )
 
-    # 체인1
+    # 체인1-2 - 바이츠 객체에서 가져오기
     pass_image_chain = TransformChain(
         input_variables=["image_path"],
         output_variables=["image"],
@@ -301,10 +399,11 @@ def get_image_description(image_path, is_bytes=False) -> dict:
 st.set_page_config(layout="wide")
 st.title('PPT 텍스트/이미지 분석봇')
 
-
 # message key 등 세션 정보 초기화
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "api_key" not in st.session_state:  # api key
+    st.session_state.api_key = None
 
 # 이미지 파일 및 디스크립션들에 대한 캐시.
 if 'img_showed_filenames' not in st.session_state:
@@ -314,13 +413,21 @@ if 'imgs' not in st.session_state:
 if 'descriptions' not in st.session_state:
     st.session_state.descriptions = []
 
-if 'ppt_rag_chain' not in st.session_state:  # rag 객체는 사용자가 ppt 파일을 올리면 활성화된다.
+# rag -> st.session_state.ppt_rag_chain
+if 'ppt_docs' not in st.session_state:  # 모든 도큐먼트 목록. 파일이 추가될때마다 도큐먼트를 추가하고 새 rag를 생성한다.
+    st.session_state.ppt_docs = []
     st.session_state.ppt_rag_chain = None
+if 'ppts_already_read_list' not in st.session_state:  # 이미 읽었던 ppt 파일 목록.
+    st.session_state.ppts_already_read_list = []
 
 
 # 사이드바 구성
-os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key', placeholder='Input your ChatGPT API key here.')
-
+if os.environ["OPENAI_API_KEY"]:
+    os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
+                                                         value=os.environ["OPENAI_API_KEY"])
+else:
+    os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
+                                                         placeholder='Input your ChatGPT API key here.')
 
 # parameters
 # max_input_len = st.sidebar.number_input('Max input length', min_value=1000, max_value=10000, value=5000, step=100)
@@ -369,20 +476,23 @@ if user_files:
             st.session_state.imgs.append(image)
             st.session_state.descriptions.append(text_gen_result)
 
-        # ppt 파일일 경우
-        elif '.ppt' in uploaded_file.name:
+        # ppt 파일일 경우 and 기존에 읽었던 ppt 파일이 아닐 경우.
+        elif '.ppt' in uploaded_file.name and uploaded_file.name not in st.session_state.ppts_already_read_list:
             # pprint(uploaded_file)
+            # 새로운 파일을 읽은 파일 목록에 넣는다. (세션 유지 중 파일 다시 읽는것 방지)
+            st.session_state.ppts_already_read_list.append(uploaded_file.name)
 
             # ppt 내 텍스트 doc 생성
             with st.spinner('파워포인트 파일 내 텍스트 읽는 중...'):
-                docs1 = get_text_documents_from_pptx(uploaded_file)
+                docs1, tmp_pptxfile_path = get_text_documents_from_pptx(uploaded_file)
 
-            st.write(docs1)
+            st.write(docs1[:5])  # 텍스트 doc (일부만) 화면 출력
 
             with st.spinner('파워포인트 파일 내 이미지 읽는 중...'):
                 # ppt 내 이미지를 모두 뽑아 doc 생성
-                docs2, img_file_list = get_image_documents_from_pptx(uploaded_file)
+                docs2, img_file_list = get_image_documents_from_pptx(tmp_pptxfile_path)
 
+            # 이미지 & 이미지 doc 화면 출력
             for img_file, img_doc in zip(img_file_list, docs2):
                 image = Image.open(img_file)
                 # chat_placeholder.image(image, caption=uploaded_file.name)
@@ -390,16 +500,14 @@ if user_files:
                 st.write(img_doc)
 
             with st.spinner('RAG Chain 구성중...'):
-                # doc 합친다
-                total_docs = combine_and_sort_documents(docs1, docs2)
+                # 모든 도큐먼트를 합친다
+                st.session_state.ppt_docs += combine_and_sort_documents(docs1, docs2)
                 # rag를 만든다.
-                st.session_state.ppt_rag_chain = get_rag_chain_from_docs(total_docs)
+                st.session_state.ppt_rag_chain = get_rag_chain_from_docs(st.session_state.ppt_docs)
                 st.write('파워포인트 내용 이해 완료! 무엇이 궁금하신가요?')
-
 
 # 메인 페이지 구성
 chat_placeholder = st.empty()
-
 
 # 채팅 목록을 출력해줄 컨테이너 생성
 text_container = st.container(border=True)
@@ -420,11 +528,11 @@ if user_chat:
 
     # AI response
     if st.session_state.ppt_rag_chain:
-        with st.spinner('답변 생성중...'):
-            answer = st.session_state.ppt_rag_chain.invoke(user_chat)
+        with text_container:
+            with st.spinner('답변 생성중...'):
+                answer = st.session_state.ppt_rag_chain.invoke(user_chat)
 
         st.session_state.messages.append({"role": "assistant", "content": answer})
         with text_container:
             with st.chat_message('assistant'):
                 st.markdown(answer)
-
