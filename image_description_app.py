@@ -100,9 +100,12 @@ def combine_and_sort_documents(docs_list1: list, docs_list2: list, by='page_numb
     return all_docs
 
 
-def format_docs(docs):
+def format_docs(docs, metadata=True):
     # 검색한 문서 결과를 하나의 문단으로 합쳐줍니다.
-    return "\n\n".join(doc.page_content for doc in docs)
+    if metadata:
+        return "\n\n".join(str(doc) for doc in docs)
+    else:
+        return "\n\n".join(doc.page_content for doc in docs)
 
 
 def get_rag_chain_from_docs(docs_or_vectorstore_for_rag, from_docs=True):
@@ -442,16 +445,23 @@ if st.session_state.ppt_vectorstore:
     save_button = st.sidebar.button('도큐먼트 저장', type='primary')
     if save_button:
         st.session_state.ppt_vectorstore.save_local('./faiss_db')
-        # 불러오기 코드
-        # db_X = FAISS.load_local('./db/test_docs', embeddings=OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+        st.toast('벡터DB 저장 성공!', icon='😁')
 else:
     load_button = st.sidebar.button('도큐먼트 불러오기', type='primary')
     if load_button:
         try:
             st.session_state.ppt_vectorstore = FAISS.load_local('./faiss_db', embeddings=OpenAIEmbeddings(),
                                                                 allow_dangerous_deserialization=True)
+            st.toast('벡터DB 불러오기 성공!', icon='😉')
+
+            # rag를 만든다.
+            st.session_state.ppt_rag_chain, \
+                st.session_state.ppt_vectorstore = get_rag_chain_from_docs(st.session_state.ppt_vectorstore,
+                                                                           from_docs=False)
+            st.write('파워포인트 내용 이해 완료! 무엇이 궁금하신가요?')
+
         except:
-            st.toast('DB 파일이 없습니다! (./faiss_db)', icon='🤬')
+            st.toast('벡터DB 파일이 없습니다! (./faiss_db)', icon='🤬')
 
 # 유저가 업로드한 파일 처리.
 if user_files:
