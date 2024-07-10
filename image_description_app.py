@@ -66,7 +66,7 @@ def pptx_to_png(pptx_filename: str, output_folder='tmp_ppt_images_folder'):
             slide.get_thumbnail(1, 1).save(tmp_name, drawing.imaging.ImageFormat.png)
             # png 파일 목록 저장
             png_file_list.append(tmp_name)
-            time.sleep(0.01)
+            # time.sleep(0.01)
             logging.debug('저장완료 - ' + tmp_name)
 
     return png_file_list
@@ -105,21 +105,22 @@ def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
 
-def get_rag_chain_from_docs(docs_for_rag):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=2000,
-        chunk_overlap=200
-    )
+def get_rag_chain_from_docs(docs_or_vectorstore_for_rag, from_docs=True):
+    # text_splitter = RecursiveCharacterTextSplitter(
+    #     chunk_size=2000,
+    #     chunk_overlap=200
+    # )
+    # splits = text_splitter.split_documents(docs_for_rag)
 
-    # 로드된 문서들을 위에서 설정한 규칙에 따라 청크로 나눕니다.
-    splits = text_splitter.split_documents(docs_for_rag)
-
-    # 벡터스토어를 생성
-    vectorstore = FAISS.from_documents(
-        documents=splits, embedding=OpenAIEmbeddings())
+    if from_docs:
+        # 벡터스토어를 생성
+        vectorstore = FAISS.from_documents(
+            documents=docs_or_vectorstore_for_rag, embedding=OpenAIEmbeddings())
+    else:
+        vectorstore = docs_or_vectorstore_for_rag
 
     # 검색기 생성.
-    retriever = vectorstore.as_retriever(k=5)
+    retriever = vectorstore.as_retriever(k=10)
 
     # 기본 프롬프트 생성
     rag_default_prompt = ("You are an assistant for question-answering tasks. "
@@ -148,7 +149,7 @@ def get_rag_chain_from_docs(docs_for_rag):
             | StrOutputParser()
     )
 
-    return rag_chain
+    return rag_chain, vectorstore
 
 
 # # # # # # # # # # # #
@@ -359,7 +360,7 @@ def get_image_description(image_path, is_bytes=False) -> dict:
     @chain
     def image_model(inputs: dict) -> str | list[str] | dict:
         """Invoke model with image and prompt."""
-        model = ChatOpenAI(temperature=1, model="gpt-4o", max_tokens=4096)  # model="gpt-4-vision-preview"
+        model = ChatOpenAI(temperature=0, model="gpt-4o", max_tokens=4096)  # model="gpt-4-vision-preview"
         msg = model.invoke(
             [HumanMessage(
                 content=[
@@ -373,7 +374,7 @@ def get_image_description(image_path, is_bytes=False) -> dict:
 
     vision_prompt = """
     Given the image, provide the following information in Korean:
-    - 망구성도 이미지에 대한 자세한 디스크립션 (이미지를 최대한 상세하게 묘사할 것.)
+    - 망구성도 이미지에 대한 자세한 디스크립션 (이미지 속 노드들과 노드 간의 연결에 대해 최대한 상세하게 묘사할 것.)
     - 망구성도 이미지 속 모든 노드 이름 목록
     - 망구성도 이미지 속 모든 링크/에지/인터페이스 이름 목록
     - 망구성도를 Mermaid code로 변환한 텍스트 
@@ -417,6 +418,7 @@ if 'descriptions' not in st.session_state:
 if 'ppt_docs' not in st.session_state:  # 모든 도큐먼트 목록. 파일이 추가될때마다 도큐먼트를 추가하고 새 rag를 생성한다.
     st.session_state.ppt_docs = []
     st.session_state.ppt_rag_chain = None
+    st.session_state.ppt_vectorstore = None
 if 'ppts_already_read_list' not in st.session_state:  # 이미 읽었던 ppt 파일 목록.
     st.session_state.ppts_already_read_list = []
 
@@ -429,12 +431,29 @@ else:
     os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
                                                          placeholder='Input your ChatGPT API key here.')
 
-# parameters
+# rag 관련 parameters
 # max_input_len = st.sidebar.number_input('Max input length', min_value=1000, max_value=10000, value=5000, step=100)
 
 user_files = st.sidebar.file_uploader('이미지 또는 PPT 파일을 올려주세요!', type=['jpg', 'jpeg', 'png', 'ppt', 'pptx'],
                                       accept_multiple_files=True)
 
+# rag용 vector store 저장 버튼
+if st.session_state.ppt_vectorstore:
+    save_button = st.sidebar.button('도큐먼트 저장', type='primary')
+    if save_button:
+        st.session_state.ppt_vectorstore.save_local('./faiss_db')
+        # 불러오기 코드
+        # db_X = FAISS.load_local('./db/test_docs', embeddings=OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+else:
+    load_button = st.sidebar.button('도큐먼트 불러오기', type='primary')
+    if load_button:
+        try:
+            st.session_state.ppt_vectorstore = FAISS.load_local('./faiss_db', embeddings=OpenAIEmbeddings(),
+                                                                allow_dangerous_deserialization=True)
+        except:
+            st.toast('DB 파일이 없습니다! (./faiss_db)', icon='🤬')
+
+# 유저가 업로드한 파일 처리.
 if user_files:
     for uploaded_file in user_files:
         # st.write("filename:", uploaded_file.name)
@@ -505,8 +524,10 @@ if user_files:
                 logging.debug('전체 docs 길이: ' + str(len(st.session_state.ppt_docs)))
 
                 # rag를 만든다.
-                st.session_state.ppt_rag_chain = get_rag_chain_from_docs(st.session_state.ppt_docs)
+                st.session_state.ppt_rag_chain, \
+                    st.session_state.ppt_vectorstore = get_rag_chain_from_docs(st.session_state.ppt_docs)
                 st.write('파워포인트 내용 이해 완료! 무엇이 궁금하신가요?')
+
 
 # 메인 페이지 구성
 chat_placeholder = st.empty()
