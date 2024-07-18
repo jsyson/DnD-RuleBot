@@ -11,12 +11,12 @@ from langchain_core.output_parsers import StrOutputParser
 
 
 # # # # # 기본 파라미터 # # # # #
+import auth
 
-
-BOT_TOKEN = '890367218:AAG8UqWN-_pi5VpGzqXDK1NX5Y545jOFvrw'
+BOT_TOKEN = auth.BOT_TOKEN
 
 # ADMIN
-ADMIN_CHAT_ID = 43605782
+ADMIN_CHAT_ID = auth.ADMIN_CHAT_ID
 
 
 # 로깅 설정.

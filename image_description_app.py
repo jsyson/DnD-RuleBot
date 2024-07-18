@@ -22,7 +22,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.runnables import chain
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from pptx import Presentation
-import aspose.slides as slides
+import aspose.slides as slides  # pip install aspose.slides
 import aspose.pydrawing as drawing
 
 # 로깅 설정
@@ -460,8 +460,9 @@ else:
                                                                            from_docs=False)
             st.write('파워포인트 내용 이해 완료! 무엇이 궁금하신가요?')
 
-        except:
-            st.toast('벡터DB 파일이 없습니다! (./faiss_db)', icon='🤬')
+        except Exception as e:
+            print(e)
+            st.toast('OpenAI API Key 또는 벡터DB 파일(./faiss_db)이 없습니다!', icon='🤬')
 
 # 유저가 업로드한 파일 처리.
 if user_files:
