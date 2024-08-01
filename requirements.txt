@@ -3,7 +3,7 @@ numpy~=1.26.2
 pandas~=2.2.2
 streamlit~=1.36.0
 langchain~=0.2.6
-pillow~=10.3.0
+pillow~=10.1.0
 aspose.slides
 langchain
 langchain_community
@@ -12,3 +12,5 @@ langchainhub
 python-pptx
 unstructured
 python-telegram-bot
+requests~=2.32.3
+beautifulsoup4~=4.12.3
