@@ -10,15 +10,14 @@ from io import StringIO
 import feedparser
 from datetime import datetime
 import pytz
+import re
 import streamlit as st
-
 
 # 로깅 설정
 logging.basicConfig(level=logging.DEBUG)
 
-
 GEOLOC_CACHE_FILE = 'geolocation_cache.pkl'
-
+FETCH_INTERVAL = 10  # 60초마다 뉴스 업데이트
 
 # 스레드 풀 실행자 초기화
 # executor = concurrent.futures.ThreadPoolExecutor()
@@ -45,10 +44,8 @@ if "geolocations" not in st.session_state:
         st.session_state.geolocations = dict()  # 지역별 위경도 dict를 모아둔 dict
         logging.info('캐시 파일 없음.')
 
-
-# # # # # # # # # # # #
-# 이미지 해석 체인 #
-# # # # # # # # # # # #
+if "news_list" not in st.session_state:
+    st.session_state.news_list = []
 
 
 # # # # # # # # # #
@@ -57,8 +54,11 @@ if "geolocations" not in st.session_state:
 
 
 def get_google_outage_news(keyword_):
+    query = keyword_
+    if and_keyword:
+        query += ' ' + and_keyword[0]
 
-    url = f"https://news.google.com/rss/search?q={keyword_ + ' ' + and_keyword}+when:{search_hour}h"
+    url = f"https://news.google.com/rss/search?q={query}+when:{search_hour}h"
     url += f'&hl=en-US&gl=US&ceid=US:en'
     url = url.replace(' ', '%20')
 
@@ -69,7 +69,7 @@ def get_google_outage_news(keyword_):
 
     try:
         res = requests.get(url)  # , verify=False)
-        st.write('원본 링크: ' + url)
+        logging.info('원본 링크: ' + url)
 
         if res.status_code == 200:
             datas = feedparser.parse(res.text).entries
@@ -81,8 +81,8 @@ def get_google_outage_news(keyword_):
                 title = title[:minus_index].strip()
 
                 # 기사 제목에 검색 키워드가 없으면 넘긴다.
-                # if keyword_ not in title or and_keyword not in title:
-                #     continue
+                if keyword_.lower() not in title.lower():
+                    continue
 
                 title_list.append(title)
                 source_list.append(data.source.title)
@@ -113,20 +113,60 @@ def get_google_outage_news(keyword_):
     return df
 
 
-def display_news_df(ndf):
-    if news_df is None or len(news_df) == 0:
-        st.write('검색된 뉴스 없습니다.')
+def display_news_df(ndf, keyword_):
+    st.divider()
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    if ndf is None or len(ndf) == 0:
+        st.write(f'✅ 검색된 뉴스 없습니다. ({current_time})')
         return
 
-    st.write('뉴스 검색 결과')
-    st.divider()
+    # st.write('뉴스 검색 결과')
 
+    disp_cnt = 0
     for i, row in ndf.iterrows():
-        st.header(row['제목'])
-        st.write('언론사: ' + row['언론사'])
-        st.write('발행시각: ' + row['발행시간'])
-        st.write(row['링크'])
-        st.divider()
+        # 이미 출력했던 뉴스라면 스킵한다.
+        if row['제목'] in st.session_state.news_list:
+            logging.info('뉴스 스킵!!! - ' + row['제목'])
+            continue
+
+        # 출력한 뉴스 리스트에 추가한다.
+        st.session_state.news_list.append(row['제목'])
+        disp_cnt += 1
+
+        # title = row['제목'].replace(keyword_, f':yellow-background[{keyword_}]')
+        # logging.info('keyword: ' + keyword_)
+        # logging.info('before: ' + row['제목'])
+        title = re.sub(keyword_, f':blue-background[{keyword_}]', row['제목'], flags=re.IGNORECASE)
+        if and_keyword:
+            title = re.sub(and_keyword[0], f':blue-background[{and_keyword[0]}]', title, flags=re.IGNORECASE)
+        # logging.info('after : ' + title)
+
+        st.markdown(f'''**{title}**          
+- {row["언론사"]}, {row["발행시간"]} <a href="{row["링크"]}" target="_blank">📝</a>''',
+                    unsafe_allow_html=True)
+        # st.write(' - 언론사: ' + row['언론사'] + '  - 발행시각: ' + row['발행시간'])
+        # st.write(row['링크'])
+        # st.divider()
+
+    if disp_cnt > 0:
+        st.write(f'✅ 뉴스 표시 완료 ({current_time})')
+    else:
+        st.write(f'✅ 신규 뉴스 없습니다. ({current_time})')
+
+
+def fetch_news(keyword_, infinite_loop=False):
+    with st.spinner('뉴스 검색중...'):
+        news_df_ = get_google_outage_news(keyword_)
+        # st.write(news_df_)
+        display_news_df(news_df_, keyword_)
+
+    while infinite_loop:
+        time.sleep(search_interval_min * 60)
+        with st.spinner('뉴스 검색중...'):
+            news_df_ = get_google_outage_news(keyword_)
+            # st.write(news_df_)
+            display_news_df(news_df_, keyword_)
 
 
 # # # # # # # # # # # # # # #
@@ -222,6 +262,24 @@ def get_geo_location(map_df_):
     return map_df_
 
 
+def get_multiple(values_sr):
+    max_report = values_sr.max()
+    multiple_ = 20000
+    if max_report >= 5000:
+        multiple_ = 50
+    elif max_report >= 2000:
+        multiple_ = 125
+    elif max_report >= 1000:
+        multiple_ = 250
+    elif max_report >= 500:
+        multiple_ = 500
+    elif max_report >= 100:
+        multiple_ = 2500
+    elif max_report >= 50:
+        multiple_ = 5000
+    return multiple_
+
+
 # # # # # # # # # #
 # 회사 목록 받아오기
 # # # # # # # # # #
@@ -244,7 +302,6 @@ for company in companies_html_list:
 
 logging.info('Total companies count:' + str(len(companies_list)))
 
-
 # # # # # # # # # #
 # 웹 페이지 구성
 # # # # # # # # # #
@@ -262,100 +319,102 @@ service_code_name = st.sidebar.selectbox(
     placeholder="서비스 이름 선택...",
 )
 
-another_service = st.sidebar.text_input("목록에 없을 경우 여기 서비스명을 적으세요! (영어로)", )
+another_service = st.sidebar.text_input("목록에 없을 경우 여기 서비스명 입력(영어로)", )
 
 search_hour = st.sidebar.number_input('최근 몇시간의 뉴스를 검색할까요?', value=1, format='%d')
 
-and_keyword = st.sidebar.text_input("뉴스 검색 추가 키워드", value='outage', disabled=True)
+and_keyword = st.sidebar.multiselect("뉴스 검색 추가 키워드", options=['outage', 'blackout', 'failure'], default=['outage'])
 
+search_interval_min = st.sidebar.number_input('새로고침 주기는 몇 분?', value=1, format='%d')
 
-if service_code_name:
+if os.environ.get("OPENAI_API_KEY"):
+    st.sidebar.text_input('OpenAI API Key', value='OS 환경변수에 저장된 Key 사용', disabled=True)
+else:
+    os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
+                                                         placeholder='Input your ChatGPT API key here.')
+
+st.sidebar.write('❓ 참고사이트: https://istheservicedown.com/')
+
+if service_code_name and not another_service:
+    # 본문 화면 구성
     selected_code = service_code_name.split('/')[0]
     selected_name = service_code_name.split('/')[1]
 
     st.title(selected_name)
-    # st.write("선택 서비스 코드: ", selected_code)
+    # st.markdown('**This is :blue-background[test].** abcd')
 
-    with st.spinner('서비스 상태 조회중...'):
-        status, chart_url, map_df = get_service_chart_mapdf(selected_code)
+    col1, col2 = st.columns(2)
 
-        # 상태
-        if 'No problem' in status:
-            color = 'green'
-        elif status == 'Some problems detected':
-            color = 'orange'
-        else:  # 'Problems detected':
-            color = 'red'
+    # 빈 공간을 생성하여 나중에 내용을 업데이트할 준비
+    col1_placeholder = col1.empty()
+    col2_placeholder = col2.empty()
 
-        st.header(f'👉 :{color}[{status}]')
+    # 이 아래로는 수시로 업데이트 함.
+    while True:
+        with col1_placeholder.container():
+            with st.spinner('서비스 상태 조회중...'):
+                status, chart_url, map_df = get_service_chart_mapdf(selected_code)
 
-    st.divider()
+                # 상태
+                if 'No problem' in status:
+                    color = 'green'
+                elif status == 'Some problems detected':
+                    color = 'orange'
+                else:  # 'Problems detected':
+                    color = 'red'
 
-    st.write('Problems reported in the last 24 hours')
+                st.header(f'👉 :{color}[{status}]')
 
-    # HTML iframe 태그를 사용하여 웹사이트 임베드
-    chart_iframe_html = f"""
-    <iframe src={chart_url} width="800" height="400" frameborder="0"></iframe>
-    """
-    st.markdown(chart_iframe_html, unsafe_allow_html=True)
+            st.divider()
 
-    st.divider()
+            st.write('📈 Problems reported in the last 24 hours')
 
-    with st.spinner('서비스 맵 구성중...'):
-        map_df = get_geo_location(map_df)
+            # HTML iframe 태그를 사용하여 웹사이트 임베드
+            chart_iframe_html = f"""
+            <iframe src={chart_url} width="600" height="300" frameborder="0"></iframe>
+            """
+            st.markdown(chart_iframe_html, unsafe_allow_html=True)
 
-        st.write('Most affected locations in the past 15 days')
+            # st.divider()
 
-        # 지도 그리기
-        drawing_df = map_df.dropna()
+            with st.spinner('서비스 맵 구성중...'):
+                map_df = get_geo_location(map_df)
 
-        max_report = drawing_df['Reports'].max()
-        multiple = 50000
-        if max_report >= 5000:
-            multiple = 100
-        elif max_report >= 2000:
-            multiple = 250
-        elif max_report >= 1000:
-            multiple = 500
-        elif max_report >= 500:
-            multiple = 1000
-        elif max_report >= 100:
-            multiple = 5000
-        elif max_report >= 50:
-            multiple = 10000
+                st.write('🌏 Most affected locations in the past 15 days')
 
-        drawing_df['Reports'] = drawing_df['Reports'] * multiple
-        st.map(drawing_df,
-            latitude='lat',
-            longitude='lon',
-            size='Reports',
-            color='color')
+                # 지도 그리기
+                drawing_df = map_df.dropna()
+                multiple = get_multiple(drawing_df['Reports'])
 
-        st.write(map_df)
+                drawing_df['Reports'] = drawing_df['Reports'] * multiple
+                st.map(drawing_df,
+                       latitude='lat',
+                       longitude='lon',
+                       size='Reports',
+                       color='color')
 
-        # map 페이지 출력.
-        # map_iframe_html = f"""
-        # <iframe src={map_url} width="800" height="600" frameborder="0"></iframe>
-        # """
-        # st.markdown(map_iframe_html, unsafe_allow_html=True)
+                with st.expander('상세 보기'):
+                    st.write(map_df[['Location', 'Reports']])
 
-    st.divider()
+        with col2_placeholder.container():
+            st.session_state.news_list = []  # 뉴스 세션 클리어
+            st.write('🔎 News list')
+            fetch_news(selected_name)
 
-    with st.spinner('해외언론 검색중...'):
-        news_df = get_google_outage_news(selected_name)
-        # st.write(news_df)
-        display_news_df(news_df)
+        time.sleep(search_interval_min * 60)
+        st.experimental_rerun()  # 페이지를 새로 고쳐서 업데이트 적용
 
 
 if another_service and not service_code_name:
+    st.session_state.news_list = []  # 뉴스 세션 클리어
     st.title(another_service)
+    fetch_news(another_service, infinite_loop=True)
 
-    with st.spinner('해외언론 검색중...'):
-        news_df = get_google_outage_news(another_service)
-        # st.write(news_df)
-        display_news_df(news_df)
+
+if service_code_name and another_service:
+    st.error('하나의 서비스만 골라주세요!', icon="🚨")
+    st.write(service_code_name, '  VS.  ', another_service)
 
 
 # 메인 페이지 구성
-
-chat_placeholder = st.empty()
+# chat_placeholder = st.empty()
