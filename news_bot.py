@@ -114,7 +114,7 @@ def get_google_outage_news(keyword_):
 
 
 def display_news_df(ndf, keyword_):
-    st.divider()
+    # st.divider()
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     if ndf is None or len(ndf) == 0:
@@ -319,7 +319,7 @@ service_code_name = st.sidebar.selectbox(
     placeholder="서비스 이름 선택...",
 )
 
-another_service = st.sidebar.text_input("목록에 없을 경우 여기 서비스명 입력(영어로)", )
+another_service = st.sidebar.text_input("또는 서비스명 입력", )
 
 search_hour = st.sidebar.number_input('최근 몇시간의 뉴스를 검색할까요?', value=1, format='%d')
 
@@ -333,15 +333,15 @@ else:
     os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
                                                          placeholder='Input your ChatGPT API key here.')
 
+st.sidebar.divider()
 st.sidebar.write('❓ 참고사이트: https://istheservicedown.com/')
 
+
+# 서비스 선택시 처리
 if service_code_name and not another_service:
     # 본문 화면 구성
     selected_code = service_code_name.split('/')[0]
     selected_name = service_code_name.split('/')[1]
-
-    st.title(selected_name)
-    # st.markdown('**This is :blue-background[test].** abcd')
 
     col1, col2 = st.columns(2)
 
@@ -351,27 +351,36 @@ if service_code_name and not another_service:
 
     # 이 아래로는 수시로 업데이트 함.
     while True:
+
+        with st.spinner('서비스 상태 조회중...'):
+            status, chart_url, map_df = get_service_chart_mapdf(selected_code)
+
+            # 상태
+            if 'No problem' in status:
+                color = 'green'
+            elif status == 'Some problems detected':
+                color = 'orange'
+            else:  # 'Problems detected':
+                color = 'red'
+
         with col1_placeholder.container():
-            with st.spinner('서비스 상태 조회중...'):
-                status, chart_url, map_df = get_service_chart_mapdf(selected_code)
+            # st.title(selected_name)
+            st.subheader(f'**{selected_name}**  👉 :{color}[{status}]')
+            # st.markdown('**This is :blue-background[test].** abcd')
 
-                # 상태
-                if 'No problem' in status:
-                    color = 'green'
-                elif status == 'Some problems detected':
-                    color = 'orange'
-                else:  # 'Problems detected':
-                    color = 'red'
+            st.session_state.news_list = []  # 뉴스 세션 클리어
+            st.write('🔎 News List')
+            fetch_news(selected_name)
 
-                st.header(f'👉 :{color}[{status}]')
+        with col2_placeholder.container():
 
-            st.divider()
+            # st.divider()
 
-            st.write('📈 Problems reported in the last 24 hours')
+            st.write('📈 Live Report Chart (last 24 hours)')
 
             # HTML iframe 태그를 사용하여 웹사이트 임베드
             chart_iframe_html = f"""
-            <iframe src={chart_url} width="600" height="300" frameborder="0"></iframe>
+            <iframe src={chart_url} width="520" height="260" frameborder="0"></iframe>
             """
             st.markdown(chart_iframe_html, unsafe_allow_html=True)
 
@@ -380,7 +389,7 @@ if service_code_name and not another_service:
             with st.spinner('서비스 맵 구성중...'):
                 map_df = get_geo_location(map_df)
 
-                st.write('🌏 Most affected locations in the past 15 days')
+                st.write('🌏 Live Outage Map')
 
                 # 지도 그리기
                 drawing_df = map_df.dropna()
@@ -394,12 +403,8 @@ if service_code_name and not another_service:
                        color='color')
 
                 with st.expander('상세 보기'):
+                    st.write('Locations in the past 15 days')
                     st.write(map_df[['Location', 'Reports']])
-
-        with col2_placeholder.container():
-            st.session_state.news_list = []  # 뉴스 세션 클리어
-            st.write('🔎 News list')
-            fetch_news(selected_name)
 
         time.sleep(search_interval_min * 60)
         st.experimental_rerun()  # 페이지를 새로 고쳐서 업데이트 적용
@@ -418,3 +423,4 @@ if service_code_name and another_service:
 
 # 메인 페이지 구성
 # chat_placeholder = st.empty()
+
