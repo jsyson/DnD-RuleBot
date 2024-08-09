@@ -12,6 +12,8 @@ from datetime import datetime
 import pytz
 import re
 import streamlit as st
+from google.cloud import translate_v2 as translate  # pip install google-cloud-translate==2.0.1
+from google.oauth2 import service_account
 
 # 로깅 설정
 logging.basicConfig(level=logging.DEBUG)
@@ -142,12 +144,15 @@ def display_news_df(ndf, keyword_):
             title = re.sub(and_keyword[0], f':blue-background[{and_keyword[0]}]', title, flags=re.IGNORECASE)
         # logging.info('after : ' + title)
 
-        st.markdown(f'''**{title}**          
-- {row["언론사"]}, {row["발행시간"]} <a href="{row["링크"]}" target="_blank">📝</a>''',
-                    unsafe_allow_html=True)
+        # 제목 번역
+        korean_title = translate_eng_to_kor(row['제목'])
+
+        with st.container(border=True):
+            st.markdown(f'**{title}**')
+            st.caption(f'{korean_title}')
+            st.markdown(f'- {row["언론사"]}, {row["발행시간"]} <a href="{row["링크"]}" target="_blank">📝</a>',
+                        unsafe_allow_html=True)
         # st.write(' - 언론사: ' + row['언론사'] + '  - 발행시각: ' + row['발행시간'])
-        # st.write(row['링크'])
-        # st.divider()
 
     if disp_cnt > 0:
         st.write(f'✅ 뉴스 표시 완료 ({current_time})')
@@ -167,6 +172,16 @@ def fetch_news(keyword_, infinite_loop=False):
             news_df_ = get_google_outage_news(keyword_)
             # st.write(news_df_)
             display_news_df(news_df_, keyword_)
+
+
+def translate_eng_to_kor(text):
+    trans_key_path = './gcp/coastal-bloom-310611-ad014e3bd1be.json'
+    credential_trans = service_account.Credentials.from_service_account_file(trans_key_path)
+    translate_client = translate.Client(credentials=credential_trans)
+
+    result = translate_client.translate(text, target_language='ko')
+    # print(names)
+    return result['translatedText'].replace('&amp;', '&')
 
 
 # # # # # # # # # # # # # # #
