@@ -279,19 +279,8 @@ def get_geo_location(map_df_):
 
 def get_multiple(values_sr):
     max_report = values_sr.max()
-    multiple_ = 20000
-    if max_report >= 5000:
-        multiple_ = 50
-    elif max_report >= 2000:
-        multiple_ = 125
-    elif max_report >= 1000:
-        multiple_ = 250
-    elif max_report >= 500:
-        multiple_ = 500
-    elif max_report >= 100:
-        multiple_ = 2500
-    elif max_report >= 50:
-        multiple_ = 5000
+    multiple_ = int(500000 / max_report)
+    logging.info(f'{max_report=} {multiple_=}')
     return multiple_
 
 
@@ -375,8 +364,10 @@ if service_code_name and not another_service:
                 color = 'green'
             elif status == 'Some problems detected':
                 color = 'orange'
+                st.toast(f'**{selected_name}** 서비스 문제 발생!', icon="🚨")
             else:  # 'Problems detected':
                 color = 'red'
+                st.toast(f'**{selected_name}** 서비스 중대 문제 발생!', icon="🚨")
 
         with col1_placeholder.container():
             # st.title(selected_name)
@@ -388,9 +379,7 @@ if service_code_name and not another_service:
             fetch_news(selected_name)
 
         with col2_placeholder.container():
-
             # st.divider()
-
             st.write('📈 Live Report Chart (last 24 hours)')
 
             # HTML iframe 태그를 사용하여 웹사이트 임베드
@@ -400,7 +389,6 @@ if service_code_name and not another_service:
             st.markdown(chart_iframe_html, unsafe_allow_html=True)
 
             # st.divider()
-
             with st.spinner('서비스 맵 구성중...'):
                 map_df = get_geo_location(map_df)
 
