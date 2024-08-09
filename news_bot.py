@@ -15,11 +15,14 @@ import streamlit as st
 from google.cloud import translate_v2 as translate  # pip install google-cloud-translate==2.0.1
 from google.oauth2 import service_account
 
+
 # 로깅 설정
 logging.basicConfig(level=logging.DEBUG)
 
 GEOLOC_CACHE_FILE = 'geolocation_cache.pkl'
+TRANS_KEY_PATH = 'coastal-bloom-310611-ad014e3bd1be.json'
 FETCH_INTERVAL = 10  # 60초마다 뉴스 업데이트
+
 
 # 스레드 풀 실행자 초기화
 # executor = concurrent.futures.ThreadPoolExecutor()
@@ -175,8 +178,7 @@ def fetch_news(keyword_, infinite_loop=False):
 
 
 def translate_eng_to_kor(text):
-    trans_key_path = './gcp/coastal-bloom-310611-ad014e3bd1be.json'
-    credential_trans = service_account.Credentials.from_service_account_file(trans_key_path)
+    credential_trans = service_account.Credentials.from_service_account_file(TRANS_KEY_PATH)
     translate_client = translate.Client(credentials=credential_trans)
 
     result = translate_client.translate(text, target_language='ko')
@@ -332,13 +334,31 @@ and_keyword = st.sidebar.multiselect("뉴스 검색 추가 키워드", options=[
 search_interval_min = st.sidebar.number_input('새로고침 주기는 몇 분?', value=1, format='%d')
 
 if os.environ.get("OPENAI_API_KEY"):
-    st.sidebar.text_input('OpenAI API Key', value='OS 환경변수에 저장된 Key 사용', disabled=True)
+    st.toast('OpenAI API key는 OS 환경변수에 저장된 key 사용합니다.')
 else:
     os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
                                                          placeholder='Input your ChatGPT API key here.')
 
+if not os.path.exists(TRANS_KEY_PATH):
+    uploaded_file = st.sidebar.file_uploader('Google API Key', type=['json'], accept_multiple_files=False)
+else:
+    st.toast('Google API key 파일은 로컬 저장된 파일 사용합니다.')
+    uploaded_file = None
+
 st.sidebar.divider()
 st.sidebar.write('❓ 참고사이트: https://istheservicedown.com/')
+
+
+# 구글 json 파일 업로드 처리
+if uploaded_file is not None:
+    # 로컬에 저장할 파일 이름 설정
+    # file_name = uploaded_file.name
+
+    # 파일을 로컬에 저장
+    with open(TRANS_KEY_PATH, "wb") as file:
+        file.write(uploaded_file.getbuffer())
+
+    st.success(f"Google API key file has been saved successfully!")
 
 
 # 서비스 선택시 처리
