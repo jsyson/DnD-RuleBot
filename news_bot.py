@@ -20,7 +20,7 @@ from google.oauth2 import service_account
 logging.basicConfig(level=logging.DEBUG)
 
 GEOLOC_CACHE_FILE = 'geolocation_cache.pkl'
-TRANS_KEY_PATH = 'coastal-bloom-310611-ad014e3bd1be.json'
+TRANS_KEY_PATH = 'google_api_key.json'
 FETCH_INTERVAL = 10  # 60초마다 뉴스 업데이트
 
 
