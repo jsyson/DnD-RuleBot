@@ -334,7 +334,7 @@ and_keyword = st.sidebar.multiselect("뉴스 검색 추가 키워드", options=[
 search_interval_min = st.sidebar.number_input('새로고침 주기는 몇 분?', value=1, format='%d')
 
 if os.environ.get("OPENAI_API_KEY"):
-    st.toast('OpenAI API key는 OS 환경변수에 저장된 key 사용합니다.')
+    logging.info('OpenAI API key는 OS 환경변수에 저장된 key 사용합니다.')
 else:
     os.environ["OPENAI_API_KEY"] = st.sidebar.text_input('OpenAI API Key',
                                                          placeholder='Input your ChatGPT API key here.')
@@ -342,7 +342,7 @@ else:
 if not os.path.exists(TRANS_KEY_PATH):
     uploaded_file = st.sidebar.file_uploader('Google API Key', type=['json'], accept_multiple_files=False)
 else:
-    st.toast('Google API key 파일은 로컬 저장된 파일 사용합니다.')
+    logging.info('Google API key 파일은 로컬 저장된 파일 사용합니다.')
     uploaded_file = None
 
 st.sidebar.divider()
